@@ -16,73 +16,80 @@
 #   Sample use:
 #       python3 wikipath.py Terence_Tao Leonhard_Euler 3
 
-import requests
+from collections import deque
 import sys
+import urllib
 
 from bs4 import BeautifulSoup
-from collections import deque
+import requests
+
+
+def format_page(page):
+    # Makes it more human-readible, renders unicode characters
+    return urllib.parse.unquote(page)
+
+def format_path(path):
+    path = list(map(format_page, path))
+    return ' --> '.join(path)
 
 def shortest_path(start_page, end_page, max_distance):
 
     # All relevant Wikipedia pages begin with this
     PREFIX = 'https://en.wikipedia.org/wiki/'
 
-    # There a some pages on Wikipedia (Help pages, files, etc.) that are not
-    # helpful to us. They simply clog up our search and do not usually have
-    # any useful links.
-    BAD_LINKS = ['Help:', 'File:']
+    # Wikipedia uses a namespace system to organize its pages. The only relevant
+    # namesapce for the search is the main namespace (no prefix) and the rest
+    # can be ignored.
+    BAD_NAMESPACES = ['User', 'Wikipedia', 'File', 'MediaWiki', 'Template', 'Help', 'Category', 'Portal', 'Draft', 'TimedText', 'Module']
 
-    # A dictionary that stores the pages we have seen so far, and how far
-    # they are from the original page.
+    # A dictionary that stores the pages seen so far, and how far they are from
+    # the original page.
     distance = {start_page: 0}
 
-    # A dictionary that stores where we came from to reach a given page.
+    # A dictionary that stores which page led to a given page.
     parent = {start_page: None}
 
-    # A queue that holds the webpages we have yet to explore.
+    # A queue that holds the webpages yet to be explored.
     queue = deque([start_page])
 
     while queue and end_page not in parent:
         current_page = queue.popleft()
 
-        # If we are already max_distance away, we would not like to expand
-        # this site any further.
+        # Do not expand pages that are already max_distance away from the
+        # starting page.
         if distance[current_page] >= max_distance:
             continue
         
-        print('Searching', current_page)
+        print('Searching', format_page(current_page))
 
-        # Query the webpage. We check to make sure that the site is valid,
+        # Query the webpage. Check to make sure that the site is valid,
         # because it is possible that the user has entered an invalid link.
         # In addition, Wikipedia pages can sometimes contain broken links.
         webpage = requests.get(PREFIX + current_page)
         if not webpage.ok:
             return None
 
-        # Consider all links in the body of the wepbage. Only hyperlinks that
-        # are within <p> tags are considered.
+        # Consider all links in the body of the wepbage.
         soup = BeautifulSoup(webpage.content, 'html.parser')
         body = soup.find('div', id='bodyContent')
-        for paragraph in body.find_all('p'):
-            for a in paragraph.find_all('a', href=True):
-                next_page = a['href']
+        for a in body.find_all('a', href=True):
+            next_page = a['href']
 
-                # If a link begins with '/wiki/', then it is an internal link.
-                if next_page.startswith('/wiki/'):
+            # If a link begins with '/wiki/', then it is an internal link.
+            if next_page.startswith('/wiki/'):
 
-                    # Since all pages have this prefix, we don't need to store it.
-                    next_page = next_page[len('/wiki/'):]
-                    
-                    # Make sure the current site is not one of the types we
-                    # would like to avoid
-                    if not any([next_page.startswith(link) for link in BAD_LINKS]):
+                # Since all pages have this prefix, there is no need to store it.
+                next_page = next_page[len('/wiki/'):]
+                
+                # Make sure the current site is not one of the types to avoid
+                if not any({next_page.startswith(pref + ':') or next_page.startswith(pref + '_talk:') for pref in BAD_NAMESPACES}):
 
-                        # If we have not yet seen this page, set its distance
-                        # and parent, and add it to the queue.
-                        if next_page not in parent:
-                            distance[next_page] = distance[current_page]+1
-                            parent[next_page] = current_page
-                            queue.append(next_page)
+                    # If this page has not been seen, set its distance
+                    # and parent, and add it to the queue.
+                    if next_page not in parent:
+                        distance[next_page] = distance[current_page]+1
+                        parent[next_page] = current_page
+                        queue.append(next_page)
 
     if end_page not in parent:
         return None
@@ -110,4 +117,4 @@ if __name__ == '__main__':
             print('No path exists!')
         else:
             print('Path found!')
-            print(' --> '.join(path))
+            print(format_path(path))
