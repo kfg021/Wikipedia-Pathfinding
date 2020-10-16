@@ -25,7 +25,7 @@ import requests
 
 
 def format_page(page):
-    # Makes it more human-readible, renders unicode characters
+    # Makes it more human-readable, renders unicode characters
     return urllib.parse.unquote(page)
 
 def format_path(path):
