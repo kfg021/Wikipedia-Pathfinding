@@ -75,11 +75,14 @@ def shortest_path(start_page, end_page, max_distance):
         for a in body.find_all('a', href=True):
             next_page = a['href']
 
-            # If a link begins with '/wiki/', then it is an internal link.
+            # If a link begins with "/wiki/", then it is an internal link.
             if next_page.startswith('/wiki/'):
 
                 # Since all pages have this prefix, there is no need to store it.
                 next_page = next_page[len('/wiki/'):]
+
+                # Make sure that the URL links to the full page, not to a fragment
+                next_page, _ = urllib.parse.urldefrag(next_page)
                 
                 # Make sure the current site is not one of the types to avoid
                 if not any({next_page.startswith(pref + ':') or next_page.startswith(pref + '_talk:') for pref in BAD_NAMESPACES}):
